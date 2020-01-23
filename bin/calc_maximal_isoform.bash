@@ -153,9 +153,9 @@ cat	"$PosStrandFinalSorted"	"$NegStrandFinalSorted" | sed -e 's/\.[0-9]\t/\t/' >
 
 ## Next, we use a supplementary python script to add common gene ID's
 ## so that we can filter out isoforms from our final file.
-python convert_isoform.py -l "$ConversionFile" \
-			 -f "$StrandsMerged" \
-			 -o "$FPKMCommonID"
+convert_isoform.py -l "$ConversionFile" \
+									 -f "$StrandsMerged" \
+									 -o "$FPKMCommonID"
 
 ## At long last, we sort in descending order and filter
 sort -rnk7 "$FPKMCommonID" | sort -usk8 |
