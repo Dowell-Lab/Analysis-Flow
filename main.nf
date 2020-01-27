@@ -2,6 +2,7 @@
 
 // TODO Change this to a user set parameter
 params.conditionsTable = "/scratch/Users/zama8258/analysis_flow/test/conditions_table.txt"
+params.designTable = "/scratch/Users/zama8258/analysis_flow/test/design.txt"
 params.dataDir = "/scratch/Users/zama8258/nina_rnaseq_processed"
 params.bamDir = params.dataDir + "/mapped/bams/"
 params.bedgraphs = params.dataDir + "/mapped/bedgraphs/*.bedGraph"
@@ -18,11 +19,14 @@ condTable = Channel
 .fromPath(params.conditionsTable)
 .splitText() { tuple(it.split()[0], it.split()[1])}
 .groupTuple(by: 1)
-.map() {tuple(it[1], it[0])}
+.flatMap() { [(it[1]): (it[0])] }
 .toList()
-.map() { [it, it].combinations() }
-.filter() { it[0] != it[1] }
-.subscribe() {println it}
+.subscribe() { println it }
+
+designTable = Channel
+.fromPath(params.designTable)
+.splitText() { tuple(it.split()[0], it.split()[1])}
+.subscribe() { println it }
 
 // We generate bam names from bedgraph names to ensure that they match.
 samples = Channel
