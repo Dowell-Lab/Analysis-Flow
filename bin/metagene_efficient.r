@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 ### metagene_graph_custom.r --- Custom Metagene Plots
 ##
 ## Filename: metagene_graph_custom.r
@@ -64,8 +65,12 @@ df_antisense <- countsAntiSense %>% separate(Geneid, into = c("geneid", "coord")
 df_antisense$coord = as.numeric(df_antisense$coord)
 
 print("Using Groups:")
-print(paste0(name_i, ": ", group_i))
-print(paste0(name_j, ": ", group_j))
+print(name_i)
+group_i <- lapply(group_i, function(x) paste0(x, ".sorted.bam"))
+print(group_i)
+print(name_j)
+group_j <- lapply(group_i, function(x) paste0(x, ".sorted.bam"))
+print(group_j)
 
 meltify_frame <- function(frame) {
     new_frame <- frame %>%

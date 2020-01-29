@@ -1,5 +1,7 @@
 # Analysis Flow Pipeline
 
+**NOT READY FOR PUBLIC USE. PROCEED AT YOUR OWN RISK**
+
 This repository contains Zach's Analysis-Flow pipeline to perform basic
 analysis on processed sequencing data (Nascent and RNA-Seq). This pipeline
 performs the following:

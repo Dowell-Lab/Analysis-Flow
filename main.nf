@@ -9,6 +9,7 @@ params.bedgraphs = params.dataDir + "/mapped/bedgraphs/*.bedGraph"
 // These should be parameterized in user config
 params.refseq = "/scratch/Shares/dowell/genomes/hg38/hg38_refseq.bed"
 params.conversionFile = "/scratch/Users/zama8258/pause_analysis_src/refseq_to_common_id.txt"
+params.metageneNumRegions=100
 params.pauseUpstream=-30
 params.pauseDownstream=300
 params.pauseTag="FIXME"
@@ -26,6 +27,7 @@ condTable = Channel
 designTable = Channel
 .fromPath(params.designTable)
 .splitText() { tuple(it.split()[0], it.split()[1])}
+.into() { designTableForDESeq; designTableForMetagene }
 
 // We generate bam names from bedgraph names to ensure that they match.
 samples = Channel
@@ -38,7 +40,7 @@ process filterIsoform {
 	memory '16 GB'
 	time '1h'
   tag "$prefix"
-  publishDir "${params.outdir}/isoform/", mode: 'copy', pattern: "*.sorted.isoform_max.bed"
+  publishDir "${params.outdir}/isoform/", mode: 'copy', pattern: "*.sorted.isoform_max.bed", overwrite: true
 	input:
 		set val(prefix), file(bedGraph), val(bam) from samples
 
@@ -65,18 +67,19 @@ allBam = Channel
 .toSortedList()
 
 // Step 2.1 -- Generate counts for DESeq2
-process countsForDeSeq {
+process countsForDESeq {
 	cpus 8
 	memory '16 GB'
-	time '1h'
+	time '30m'
   tag "$prefix"
-  publishDir "${params.outdir}/counts/", mode: 'copy', pattern: "counts*.txt*"
+  publishDir "${params.outdir}/counts/", mode: 'copy', pattern: "counts*.txt*", overwrite: true
 	input:
 		set val(prefix), file(bedGraph), val(isoform_max) from singleRef
 		file(bam) from allBam
 
 	output:
-		file("counts*.txt") into countsTable
+		file("counts*.txt") into countsTableForDESeq
+		file("counts*.txt") into countsTableForPCA
 
 	script:
 	"""
@@ -92,16 +95,16 @@ process countsForDeSeq {
 }
 
 // Step 2.2 -- Run Differential Expression Analysis
-process runDeSeq {
+process runDESeq {
 	cpus 2
 	memory '4 GB'
-	time '1h'
+	time '5m'
   tag "$prefix"
-  publishDir "${params.outdir}/deseq/", mode: 'copy', pattern: "*"
+  publishDir "${params.outdir}/deseq/", mode: 'copy', pattern: "*", overwrite: true
 	input:
 		val(condition_dict) from condTable
-		each file(counts) from countsTable
-		each condition from designTable
+		each condition from designTableForDESeq
+		each file(counts) from countsTableForDESeq
 
 	output:
 	file("*") into deSeqOutput
@@ -111,8 +114,8 @@ process runDeSeq {
 	tail -n +2 ${counts} > ${counts}_fix
 	run_deseq.r \
 				-c ${counts}_fix \
-				-gi ${condition_dict.(condition[0])} \
-				-gj ${condition_dict.(condition[1])} \
+				-gi \$(echo '${condition_dict.(condition[0])}' | sed -E -e 's/\\[|\\]|,//g') \
+				-gj \$(echo '${condition_dict.(condition[1])}' | sed -E -e 's/\\[|\\]|,//g') \
 				-ni ${condition[0]} \
 				-nj ${condition[1]} \
 				-t ${params.conversionFile} \
@@ -123,11 +126,11 @@ process runDeSeq {
 process runPCA {
 	cpus 1
 	memory '4 GB'
-	time '1h'
+	time '2m'
   tag "$prefix"
-  publishDir "${params.outdir}/pca/", mode: 'copy', pattern: "*"
+  publishDir "${params.outdir}/pca/", mode: 'copy', pattern: "*", overwrite: true
 	input:
-		file(counts) from countsTable
+		file(counts) from countsTableForPCA
 
 	output:
 	  file("*") into pcaOutput
@@ -140,15 +143,69 @@ process runPCA {
 }
 
 // Step 3.1 -- Generate counts for metagene analysis
+process countsForMetagene {
+	cpus 8
+	memory '16 GB'
+	time '30m'
+  tag "$prefix"
+  publishDir "${params.outdir}/counts/", mode: 'copy', pattern: "metagene_counts*.txt*", overwrite: true
+	input:
+		set val(prefix), file(bedGraph), val(isoform_max) from singleRef
+		file(bam) from allBam
 
+	output:
+		file("metagene_counts_sense_fix.txt") into countsTableMetageneSense
+		file("metagene_counts_antisense_fix.txt") into countsTableMetageneAntiSense
+
+	script:
+	"""
+	module load python/3.6.3
+	# Export array as a function to get it into the script.
+	function exportArray {
+	  BamFiles=(${bam})
+	}
+	export -f exportArray
+	export InFile=${isoform_max}
+	export numRegions=${params.metageneNumRegions}
+	bash -c \"exportArray; . counts_for_metagene.bash\"
+	"""
+}
 
 // Step 3.2 -- Run metagene analysis
+process runMetagene {
+	cpus 2
+	memory '4 GB'
+	time '5m'
+  tag "$prefix"
+  publishDir "${params.outdir}/metagene/", mode: 'copy', pattern: "*", overwrite: true
+	input:
+		file(countsSense) from countsTableMetageneSense
+		file(countsAntiSense) from countsTableMetageneAntiSense
+		val(condition_dict) from condTable
+		each condition from designTableForMetagene
+
+	output:
+		file("*") into metageneOutput
+
+	script:
+	"""
+	metagene_efficient.r \
+				-s ${countsSense} \
+				-a ${countsAntiSense} \
+				-gi \$(echo '${condition_dict.(condition[0])}' | sed -E -e 's/\\[|\\]|,//g') \
+				-gj \$(echo '${condition_dict.(condition[1])}' | sed -E -e 's/\\[|\\]|,//g') \
+				-ni ${condition[0]} \
+				-nj ${condition[1]} \
+				-n ${params.metageneNumRegions} \
+				-o ${condition[0]}_vs_${condition[1]}_metagene.pdf
+	"""
+}
 
 // Step 4.1 -- Calculate pause index values
 // process calcPauseIndices {
 //   validExitStatus 0
 //   tag "$name"
-//   publishDir "${params.outdir}/pausing/", mode: 'copy', pattern: "*.data"
+//   publishDir "${params.outdir}/pausing/", mode: 'copy', pattern: "*.data", overwrite: true
 // 	input:
 // 		set val(prefix), file(bedGraph), file(isoformMax) from filteredIsoforms
 //
