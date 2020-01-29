@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 ## Script to run DESeq2
 ## Maintainer: Zachary Maas <zama8258@colorado.edu>
 
@@ -26,8 +27,6 @@ parser$add_argument("-nj", "--name_j", action="store", dest="name_j",
                     help="The name of the second group.")
 parser$add_argument("-t", "--conversion_table", action="store", dest="conversion_file",
                     help="The gene id conversion to use.")
-parser$add_argument("-o", "--outdir", action="store", dest="outdir",
-                    help="The output directory name.")
 args <- parser$parse_args()
 
 counts_file <- args$counts_file
@@ -36,11 +35,9 @@ group_j <- args$group_j
 name_i <- args$name_i
 name_j <- args$name_j
 conversion_file <- args$conversion_file
-outdir <- args$outdir
 comparison <- paste0(name_i, "_vs_", name_j)
 legend_title <- paste0("(", name_i, " / ", name_j, ")")
 
-setwd(outdir)
 print("parsed args / imported data")
 
 ## Set up a function for plotting

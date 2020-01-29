@@ -19,20 +19,20 @@ condTable = Channel
 .fromPath(params.conditionsTable)
 .splitText() { tuple(it.split()[0], it.split()[1])}
 .groupTuple(by: 1)
-.flatMap() { [(it[1]): (it[0])] }
-.toList()
-.subscribe() { println it }
+.map() { [(it[1]): (it[0])] }
+.reduce { a, b -> a+b }
+.view() {"COND: $it"}
 
 designTable = Channel
 .fromPath(params.designTable)
 .splitText() { tuple(it.split()[0], it.split()[1])}
-.subscribe() { println it }
 
 // We generate bam names from bedgraph names to ensure that they match.
 samples = Channel
 .fromPath(params.bedgraphs)
 .map { file -> tuple(file.baseName, file, "$params.bamDir" + "$file.baseName" + ".sorted.bam")}
 
+// Step 1 -- Filter for maximal isoforms
 process filterIsoform {
 	cpus 8
 	memory '16 GB'
@@ -55,12 +55,16 @@ process filterIsoform {
 	"""
 }
 
-singleRef = filteredIsoforms.first()
+// Use a seeded random number to take the same sample every time.
+singleRef = filteredIsoforms
+.randomSample(1, 3432)
+.first()
 
 allBam = Channel
 .fromPath("$params.bamDir" + "*.bam")
 .toSortedList()
 
+// Step 2.1 -- Generate counts for DESeq2
 process countsForDeSeq {
 	cpus 8
 	memory '16 GB'
@@ -69,7 +73,7 @@ process countsForDeSeq {
   publishDir "${params.outdir}/counts/", mode: 'copy', pattern: "counts*.txt*"
 	input:
 		set val(prefix), file(bedGraph), val(isoform_max) from singleRef
-		file(bam )from allBam
+		file(bam) from allBam
 
 	output:
 		file("counts*.txt") into countsTable
@@ -87,6 +91,60 @@ process countsForDeSeq {
 	"""
 }
 
+// Step 2.2 -- Run Differential Expression Analysis
+process runDeSeq {
+	cpus 2
+	memory '4 GB'
+	time '1h'
+  tag "$prefix"
+  publishDir "${params.outdir}/deseq/", mode: 'copy', pattern: "*"
+	input:
+		val(condition_dict) from condTable
+		each file(counts) from countsTable
+		each condition from designTable
+
+	output:
+	file("*") into deSeqOutput
+
+	script:
+	"""
+	tail -n +2 ${counts} > ${counts}_fix
+	run_deseq.r \
+				-c ${counts}_fix \
+				-gi ${condition_dict.(condition[0])} \
+				-gj ${condition_dict.(condition[1])} \
+				-ni ${condition[0]} \
+				-nj ${condition[1]} \
+				-t ${params.conversionFile} \
+	"""
+}
+
+// Step 2.3 -- Run Principal Component Analysis
+process runPCA {
+	cpus 1
+	memory '4 GB'
+	time '1h'
+  tag "$prefix"
+  publishDir "${params.outdir}/pca/", mode: 'copy', pattern: "*"
+	input:
+		file(counts) from countsTable
+
+	output:
+	  file("*") into pcaOutput
+
+	script:
+	"""
+	tail -n +2 ${counts} > ${counts}_fix
+	run_pca.r -c ${counts}_fix
+	"""
+}
+
+// Step 3.1 -- Generate counts for metagene analysis
+
+
+// Step 3.2 -- Run metagene analysis
+
+// Step 4.1 -- Calculate pause index values
 // process calcPauseIndices {
 //   validExitStatus 0
 //   tag "$name"
@@ -108,3 +166,5 @@ process countsForDeSeq {
 // 		--bedfile=${bedGraph}
 // 	"""
 // }
+
+// Step 4.2 -- Generate pause index figures
