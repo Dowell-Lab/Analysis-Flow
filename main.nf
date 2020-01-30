@@ -36,7 +36,7 @@ samples = Channel
 
 // Step 1 -- Filter for maximal isoforms
 process filterIsoform {
-	cpus 8
+	cpus 4
 	memory '16 GB'
 	time '1h'
   tag "$prefix"
@@ -96,7 +96,7 @@ process countsForDESeq {
 
 // Step 2.2 -- Run Differential Expression Analysis
 process runDESeq {
-	cpus 2
+	cpus 1
 	memory '4 GB'
 	time '5m'
   tag "$prefix"
@@ -173,7 +173,7 @@ process countsForMetagene {
 
 // Step 3.2 -- Run metagene analysis
 process runMetagene {
-	cpus 2
+	cpus 1
 	memory '4 GB'
 	time '5m'
   tag "$prefix"
