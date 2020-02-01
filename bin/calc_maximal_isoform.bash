@@ -18,6 +18,9 @@ function logr {
 if ! type -t bedtools
 then module load bedtools
 fi
+if ! type -t featureCounts
+then module load subread
+fi
 
 ##############################
 ## Variables we always need ##
@@ -40,10 +43,10 @@ OutDir="$ScratchDir"
 ## we're only reading and writing to RAM, which gives us IO on the
 ## order of 60Gb/s
 logr "Running ""$InterestFile"" in Production Mode"
-TmpDir=$(mktemp -d)
+TmpDir=.
 
-PosRefFile="$TmpDir""/""$(uuidgen)"
-NegRefFile="$TmpDir""/""$(uuidgen)"
+PosRefFile="$TmpDir"/pos_ref.saf
+NegRefFile="$TmpDir"/neg_ref.saf
 
 RootName=$(basename "$InterestFile" .bam)
 
@@ -57,11 +60,11 @@ NegCountsMapped=0
 PosScalingFactor=0
 NegScalingFactor=0
 
-PosStrandMillionsNormalizedSums="$TmpDir""/""$(uuidgen)"
-NegStrandMillionsNormalizedSums="$TmpDir""/""$(uuidgen)"
+PosStrandMillionsNormalizedSums="$TmpDir"/pos_mil_norm_sums
+NegStrandMillionsNormalizedSums="$TmpDir"/neg_mil_norm_sums
 
-PosStrandFpkmNormalizedSums="$TmpDir""/""$(uuidgen)"
-NegStrandFpkmNormalizedSums="$TmpDir""/""$(uuidgen)"
+PosStrandFpkmNormalizedSums="$TmpDir"/pos_fpkm_norm_sums
+NegStrandFpkmNormalizedSums="$TmpDir"/neg_fpkm_norm_sums
 
 PosStrandFinalSorted="$ScratchDir"/"$RootName".pos.maxiso
 NegStrandFinalSorted="$ScratchDir"/"$RootName".neg.maxiso
@@ -70,14 +73,6 @@ StrandsMerged="$ScratchDir"/"$RootName".merge.maxiso
 FPKMCommonID="$ScratchDir"/"$RootName".merge.maxiso.common
 FinalFPKM="$OutDir"/"$RootName".isoform_max
 FinalOut="$FinalFPKM".bed
-
-# Clean up temp files on exit
-function cleanup {
-		rm -rf "$TmpDir"
-		logr "Deleted temporary directory $TmpDir"
-}
-# Register the cleanup function to be called on the EXIT signal
-trap cleanup EXIT
 
 ###############################
 ## Start Performing Analysis ##
@@ -89,9 +84,9 @@ trap cleanup EXIT
 ## and drops out any non NM_ coded genes, since for the purpose of
 ## this script we only care about protein coding genes.
 logr "Filtering RefSeq Annotations by Strand for ""$InterestFile"	&
-grep NM "$RefSeq" | awk -v OFS='\t' '{if ($6 == "+") print $1, $2, $3, $4, $5, $6}'\
+grep NM "$RefSeq" | awk -v OFS='\t' '{if ($6 == "+") print $4, $1, $2, $3, "+"}'\
 												> "$PosRefFile" &
-grep NM "$RefSeq" | awk -v OFS='\t' '{if ($6 == "-") print $1, $2, $3, $4, $5, $6}'\
+grep NM "$RefSeq" | awk -v OFS='\t' '{if ($6 == "-") print $4, $1, $2, $3, "-"}'\
 												> "$NegRefFile" &
 wait
 
@@ -109,10 +104,27 @@ if [ ! -f "$PosStrandSums" ] || [ ! -f "$NegStrandSums" ]; then
 		## sample in a strand specific manner. Note that bedtools multicov
 		## will not account for duplicate reads by default, so if we want RPKM
 		## instead of FPKM we need to add	the	`-D` flag
-		logr "Calculating Strand-Specific Coverage for BAM" &
-		bedtools multicov	-s -bams	"$InterestFile"	-bed "$PosRefFile" > "$PosStrandSums" &
-		bedtools multicov	-s -bams	"$InterestFile"	-bed "$NegRefFile" > "$NegStrandSums"	&
-		wait
+		logr "Calculating Strand-Specific Coverage for BAM"
+		featureCounts \
+				-T "$NUM_CORES" \
+				-s 1 \
+				-F 'SAF' \
+				-a "$PosRefFile" \
+			 -o "$PosStrandSums"_tmp \
+			 $InterestFile
+		tail -n +3 "$PosStrandSums"_tmp | \
+				awk -v OFS='\t' '{print $2, $3, $4, $1, 0, $5, $7}' | \
+				grep -v ';' > "$PosStrandSums"
+		featureCounts \
+				-T "$NUM_CORES" \
+				-s 1 \
+				-F 'SAF' \
+				-a "$NegRefFile" \
+				-o "$NegStrandSums"_tmp \
+				$InterestFile
+		tail -n +3 "$NegStrandSums"_tmp | \
+				awk -v OFS='\t' '{print $2, $3, $4, $1, 0, $5, $7}' | \
+				grep -v ';' > "$NegStrandSums"
 fi
 
 

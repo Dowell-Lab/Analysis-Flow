@@ -12,7 +12,7 @@ params.conversionFile = "/scratch/Users/zama8258/pause_analysis_src/refseq_to_co
 params.metageneNumRegions=100
 params.pauseUpstream=-30
 params.pauseDownstream=300
-params.pauseTag="FIXME"
+params.pauseTag="pipeline"
 params.outdir="FIXME"
 
 // Parse the main conditions table for later use
@@ -47,9 +47,12 @@ process filterIsoform {
 	output:
 		set val(prefix), file(bedGraph), file("*.sorted.isoform_max.bed") into filteredIsoforms
 
+	module 'python/3.6.3'
+	module 'bedtools'
+	module 'subread'
 	script: 
 	"""
-	module load python/3.6.3
+	export NUM_CORES=4
 	export InterestFile=${bam}
 	export RefSeq=${params.refseq}
 	export ConversionFile=${params.conversionFile}
@@ -57,8 +60,11 @@ process filterIsoform {
 	"""
 }
 
+filteredIsoforms
+.into() { filteredIsoformsForSingleRef; filteredIsoformsForPausing }
+
 // Use a seeded random number to take the same sample every time.
-singleRef = filteredIsoforms
+singleRef = filteredIsoformsForSingleRef
 .randomSample(1, 3432)
 .first()
 
@@ -81,9 +87,11 @@ process countsForDESeq {
 		file("counts*.txt") into countsTableForDESeq
 		file("counts*.txt") into countsTableForPCA
 
+	module 'python/3.6.3'
+	module 'bedtools'
+	module 'subread'
 	script:
 	"""
-	module load python/3.6.3
 	# Export array as a function to get it into the script.
 	function exportArray {
 	  BamFiles=(${bam})
@@ -157,9 +165,11 @@ process countsForMetagene {
 		file("metagene_counts_sense_fix.txt") into countsTableMetageneSense
 		file("metagene_counts_antisense_fix.txt") into countsTableMetageneAntiSense
 
+	module 'python/3.6.3'
+	module 'bedtools'
+	module 'subread'
 	script:
 	"""
-	module load python/3.6.3
 	# Export array as a function to get it into the script.
 	function exportArray {
 	  BamFiles=(${bam})
@@ -202,26 +212,29 @@ process runMetagene {
 }
 
 // Step 4.1 -- Calculate pause index values
-// process calcPauseIndices {
-//   validExitStatus 0
-//   tag "$name"
-//   publishDir "${params.outdir}/pausing/", mode: 'copy', pattern: "*.data", overwrite: true
-// 	input:
-// 		set val(prefix), file(bedGraph), file(isoformMax) from filteredIsoforms
-//
-// 	output:
-// 		set val(prefix), file("*.data") into pauseIndices
-//
-// 	script:
-// 	"""
-// 	calculate_pause_index_to_polya.sh \
-// 	  --ref=${isoformMax} \
-// 		--pus=${params.pauseUpstream} \
-// 		--pds=${params.pauseUpstream} \
-// 		--gds=${params.pauseTag} \
-// 		--outdir=$PWD \
-// 		--bedfile=${bedGraph}
-// 	"""
-// }
+process calcPauseIndices {
+	cpus 4
+	memory '8 GB'
+	time '10m'
+  validExitStatus 0
+  tag "$name"
+  publishDir "${params.outdir}/pausing/", mode: 'copy', pattern: "*.data", overwrite: true
+	input:
+		set val(prefix), file(bedGraph), file(isoformMax) from filteredIsoformsForPausing
+
+	output:
+		set val(prefix), file("*.data") into pauseIndices
+
+	script:
+	"""
+	calculate_pause_index_to_polya.sh \
+	  --ref=${isoformMax} \
+		--pus=${params.pauseUpstream} \
+		--pds=${params.pauseUpstream} \
+		--gds=${params.pauseTag} \
+		--outdir=. \
+		--bedfile=${bedGraph}
+	"""
+}
 
 // Step 4.2 -- Generate pause index figures
