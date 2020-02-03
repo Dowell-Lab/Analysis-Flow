@@ -11,6 +11,15 @@ performs the following:
 - Principal Component Analysis
 - Metagene Plot Generation
 
+## Incomplete Tasks
+
+- Wrap up all the dependencies in a Singularity container to make
+  running the pipeline a zero-effort kind of thing.
+- Add a final step that does automatic report generation for
+  end-users. This involves getting all their figures into a single zip
+  archive along with a document on how to interpret the results.
+- Clean up inputs to reduce the amount of file copying and speed up R scripts.
+
 ## License
 
 Analysis-Flow Pipeline

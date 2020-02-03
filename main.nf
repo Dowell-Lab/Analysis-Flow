@@ -238,3 +238,28 @@ process calcPauseIndices {
 }
 
 // Step 4.2 -- Generate pause index figures
+// TODO -- The existing pausing code needs some work...
+
+// Step 5.1 -- Collect figures and put them into the same folder for report generation
+process generateReport {
+	cpus 1
+	memory '4 GB'
+	time '5m'
+  validExitStatus 0
+  tag "$name"
+  publishDir "${params.outdir}/report/", mode: 'copy', pattern: "*.zip", overwrite: true
+  publishDir "${params.outdir}/report/", mode: 'copy', pattern: "*.pdf", overwrite: true
+	input:
+		file("*") from metageneOutput
+	  file("*") into pcaOutput
+		file("*") into deSeqOutput
+
+	output:
+		file("analysis_figures.zip") into generatedArchive
+		file("analysis_report.pdf") into generatedReport
+
+	script:
+	"""
+	echo \"Unimplemented\"
+	"""
+}
