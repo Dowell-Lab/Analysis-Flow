@@ -1,19 +1,39 @@
 #!/usr/bin/env nextflow
+/*
+========================================================================================
+                         AnalysisFlow -- Automated Analysis Pipeline
+========================================================================================
+ Automated Analysis Pipeline. Started 2020-01-14
+ #### Homepage / Documentation
+ https://github.com/Dowell-Lab/Analysis-Flow
+ #### Authors
+ Zachary Maas <zama8258@colorado.edu>
+========================================================================================
+========================================================================================
+*/
 
-// TODO Change this to a user set parameter
-params.conditionsTable = "/scratch/Users/zama8258/analysis_flow/test/conditions_table.txt"
-params.designTable = "/scratch/Users/zama8258/analysis_flow/test/design.txt"
-params.dataDir = "/scratch/Users/zama8258/nina_rnaseq_processed"
-params.bamDir = params.dataDir + "/mapped/bams/"
-params.bedgraphs = params.dataDir + "/mapped/bedgraphs/*.bedGraph"
-// These should be parameterized in user config
-params.refseq = "/scratch/Shares/dowell/genomes/hg38/hg38_refseq.bed"
-params.conversionFile = "/scratch/Users/zama8258/pause_analysis_src/refseq_to_common_id.txt"
-params.metageneNumRegions=100
-params.pauseUpstream=-30
-params.pauseDownstream=300
-params.pauseTag="pipeline"
-params.outdir="FIXME"
+def helpMessage() {
+	log.info"""
+	=========================================
+	AnalysisFlow v${params.version}
+  =========================================
+		This pipeline requires that you manually create a configuration file to
+		analyze your data, due to the large number of parameters involved.
+
+	Usage:
+  The typical command for running the pipeline is as follows:
+		nextflow run main.nf -profile example
+		Required arguments:
+		-profile                      Configuration profile to use. <base, slurm, example>
+		--workdir                     Nextflow working directory where all intermediate files are saved.
+		""".stripIndent()
+	}
+
+params.help = false
+if (params.help){
+    helpMessage()
+    exit 0
+}
 
 // Parse the main conditions table for later use
 condTable = Channel
@@ -241,25 +261,24 @@ process calcPauseIndices {
 // TODO -- The existing pausing code needs some work...
 
 // Step 5.1 -- Collect figures and put them into the same folder for report generation
-process generateReport {
-	cpus 1
-	memory '4 GB'
-	time '5m'
-  validExitStatus 0
-  tag "$name"
-  publishDir "${params.outdir}/report/", mode: 'copy', pattern: "*.zip", overwrite: true
-  publishDir "${params.outdir}/report/", mode: 'copy', pattern: "*.pdf", overwrite: true
-	input:
-		file("*") from metageneOutput
-	  file("*") into pcaOutput
-		file("*") into deSeqOutput
-
-	output:
-		file("analysis_figures.zip") into generatedArchive
-		file("analysis_report.pdf") into generatedReport
-
-	script:
-	"""
-	echo \"Unimplemented\"
-	"""
-}
+//process generateReport {
+//	cpus 1
+//	memory '4 GB'
+//	time '5m'
+//  tag "$name"
+//  publishDir "${params.outdir}/report/", mode: 'copy', pattern: "*.zip", overwrite: true
+//  publishDir "${params.outdir}/report/", mode: 'copy', pattern: "*.pdf", overwrite: true
+//	input:
+//		file("metagene*") from metageneOutput
+//	  file("pca*") from pcaOutput
+//		file("deseq*") from deSeqOutput
+//
+//	output:
+//		file("analysis_figures.zip") into generatedArchive
+//		file("analysis_report.pdf") into generatedReport
+//
+//	script:
+//	"""
+//	echo \"Unimplemented\"
+//	"""
+//}
