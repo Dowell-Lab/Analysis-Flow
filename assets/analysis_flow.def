@@ -1,0 +1,28 @@
+Bootstrap: docker
+From: ubuntu:latest
+
+%help
+Provides dependencies for the AnalysisFlow Pipeline
+
+%files
+
+%post
+apt-get update && apt-get install -y r-base python3
+# Install bedtools
+# wget https://github.com/arq5x/bedtools2/releases/download/v2.29.2/bedtools.static.binary
+# mv bedtools.static.binary /usr/bin/bedtools
+# chmod a+x /usr/bin/bedtools
+# Install subread
+# wget https://ayera.dl.sourceforge.net/project/subread/subread-1.6.4/subread-1.6.4-Linux-x86_64.tar.gz
+# tar xf subread-1.6.4-Linux-x86_64.tar.gz
+# cp -r subread-1.6.4-Linux-x86_64/bin/* /usr/bin/
+# rm -rf subread-1.6.4-Linux-x86_64
+# Install R Packages
+R -e "install.packages(c('tidyverse', 'ggplot2', 'ggfortify', 'plyr', 'argparse', 'ggthemes', 'reshape2', 'digest'), repos='http://cran.rstudio.com/')"
+R -e "if (!requireNamespace('BiocManager', quietly = TRUE)) install.packages('BiocManager')"
+R -e "BiocManager::install(c('limma', 'sva', 'DESeq2'))"
+
+%runscript
+bash
+
+%environment
