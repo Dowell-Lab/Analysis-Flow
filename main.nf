@@ -146,7 +146,8 @@ process runDESeq {
 				-gj \$(echo '${condition_dict.(condition[1])}' | sed -E -e 's/\\[|\\]|,//g') \
 				-ni ${condition[0]} \
 				-nj ${condition[1]} \
-				-t ${params.conversionFile} \
+				-t ${params.conversionFile}
+	rm -f Rplots.pdf
 	"""
 }
 
@@ -167,6 +168,7 @@ process runPCA {
 	"""
 	tail -n +2 ${counts} > ${counts}_fix
 	run_pca.r -c ${counts}_fix
+	rm -f Rplots.pdf
 	"""
 }
 
@@ -228,6 +230,7 @@ process runMetagene {
 				-nj ${condition[1]} \
 				-n ${params.metageneNumRegions} \
 				-o ${condition[0]}_vs_${condition[1]}_metagene.pdf
+	rm -f Rplots.pdf
 	"""
 }
 
@@ -261,24 +264,27 @@ process calcPauseIndices {
 // TODO -- The existing pausing code needs some work...
 
 // Step 5.1 -- Collect figures and put them into the same folder for report generation
-//process generateReport {
-//	cpus 1
-//	memory '4 GB'
-//	time '5m'
-//  tag "$name"
-//  publishDir "${params.outdir}/report/", mode: 'copy', pattern: "*.zip", overwrite: true
-//  publishDir "${params.outdir}/report/", mode: 'copy', pattern: "*.pdf", overwrite: true
-//	input:
-//		file("metagene*") from metageneOutput
-//	  file("pca*") from pcaOutput
-//		file("deseq*") from deSeqOutput
-//
-//	output:
-//		file("analysis_figures.zip") into generatedArchive
-//		file("analysis_report.pdf") into generatedReport
-//
-//	script:
-//	"""
-//	echo \"Unimplemented\"
-//	"""
-//}
+/*
+process generateReport {
+	cpus 1
+	memory '4 GB'
+	time '5m'
+  tag "$name"
+  publishDir "${params.outdir}/report/", mode: 'copy', pattern: "*.zip", overwrite: true
+  publishDir "${params.outdir}/report/", mode: 'copy', pattern: "*.pdf", overwrite: true
+	input:
+		file(metagene) from metageneOutput
+	  file(pca) from pcaOutput
+		file(deseq) from deSeqOutput
+
+	output:
+		file("analysis_figures.zip") into generatedArchive
+		//file("analysis_report.pdf") into generatedReport
+
+	script:
+	"""
+	echo \"Unimplemented\"
+	zip analysis_figures.zip ${metagene} ${pca} ${deseq}
+	"""
+}
+*/
