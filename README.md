@@ -11,6 +11,38 @@ performs the following:
 - Principal Component Analysis
 - Metagene Plot Generation
 
+To use this pipeline, you need to have run the Dowell Lab's
+RNASeq-Flow or Nascent-Flow pipeline first. Then, edit the
+configuration file in `conf/example.conf` with the paths of your
+processed data and any parameters that are organism dependent.
+
+You will also need to install the following binary dependencies:
+``` shell
+subread
+bedtools
+```
+And the following R depndencies:
+``` shell
+tidyverse
+ggplot2
+ggfortify
+plyr
+argparse
+ggthemes
+reshape2
+digest
+limma
+sva
+DESeq2
+```
+
+You can easily install the R dependencies with the following commands:
+``` shell
+R -e "install.packages(c('tidyverse', 'ggplot2', 'ggfortify', 'plyr', 'argparse', 'ggthemes', 'reshape2', 'digest'), repos='http://cran.rstudio.com/')"
+R -e "if (!requireNamespace('BiocManager', quietly = TRUE)) install.packages('BiocManager')"
+R -e "BiocManager::install(c('limma', 'sva', 'DESeq2'))"
+```
+
 ## Incomplete Tasks
 
 - Wrap up all the dependencies in a Singularity container to make
