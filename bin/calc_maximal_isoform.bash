@@ -95,7 +95,7 @@ wait
 if [ ! -f "$InterestFile".bai ]; then
 		logr "No Index File found. Generating One."
 		module load samtools
-		samtools index "$InterestFile"
+		samtools index -@ "$NUM_CORES" "$InterestFile"
 fi
 
 if [ ! -f "$PosStrandSums" ] || [ ! -f "$NegStrandSums" ]; then

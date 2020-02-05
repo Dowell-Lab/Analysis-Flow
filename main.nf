@@ -52,7 +52,31 @@ designTable = Channel
 // We generate bam names from bedgraph names to ensure that they match.
 samples = Channel
 .fromPath(params.bedgraphs)
-.map { file -> tuple(file.baseName, file, "$params.bamDir" + "$file.baseName" + ".sorted.bam")}
+.map { file -> tuple(file.baseName, file, "$params.cramDir" + "$file.baseName" + ".sorted.cram")}
+
+// Step 0 -- Convert cram to bam
+process cramToBam {
+	cpus 16
+	memory '40 GB'
+	time '2h'
+	tag "$prefix"
+
+	input:
+		set val(prefix), file(bedGraph), val(cram) from samples
+
+	output:
+		set val(prefix), file(bedGraph), file("${prefix}.sorted.bam") into bamSamples
+		file("${prefix}.sorted.bam") into bamInit
+
+	module 'samtools'
+	script:
+	"""
+	samtools view -@ 16 -b -1 -T ${params.reffasta} ${cram} > ${prefix}.sorted.bam
+	"""
+}
+
+allBam = bamInit
+.toSortedList()
 
 // Step 1 -- Filter for maximal isoforms
 process filterIsoform {
@@ -62,7 +86,7 @@ process filterIsoform {
   tag "$prefix"
   publishDir "${params.outdir}/isoform/", mode: 'copy', pattern: "*.sorted.isoform_max.bed", overwrite: true
 	input:
-		set val(prefix), file(bedGraph), val(bam) from samples
+		set val(prefix), file(bedGraph), val(bam) from bamSamples
 
 	output:
 		set val(prefix), file(bedGraph), file("*.sorted.isoform_max.bed") into filteredIsoforms
@@ -87,10 +111,6 @@ filteredIsoforms
 singleRef = filteredIsoformsForSingleRef
 .randomSample(1, 3432)
 .first()
-
-allBam = Channel
-.fromPath("$params.bamDir" + "*.bam")
-.toSortedList()
 
 // Step 2.1 -- Generate counts for DESeq2
 process countsForDESeq {
