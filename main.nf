@@ -49,30 +49,44 @@ designTable = Channel
 .splitText() { tuple(it.split()[0], it.split()[1])}
 .into() { designTableForDESeq; designTableForMetagene }
 
-// We generate bam names from bedgraph names to ensure that they match.
-samples = Channel
-.fromPath(params.bedgraphs)
-.map { file -> tuple(file.baseName, file, "$params.cramDir" + "$file.baseName" + ".sorted.cram")}
 
-// Step 0 -- Convert cram to bam
-process cramToBam {
-	cpus 16
-	memory '40 GB'
-	time '2h'
-	tag "$prefix"
+// Step 0 -- Convert cram to bam if needed
+if (!"$params.bamDir") {
+		// We generate cram names from bedgraph names to ensure that they match.
+		samples = Channel
+		.fromPath(params.bedgraphs)
+		.map { file -> tuple(file.baseName, file, "$params.cramDir" + "$file.baseName" + ".sorted.cram")}
 
-	input:
-		set val(prefix), file(bedGraph), val(cram) from samples
+		process cramToBam {
+		cpus 16
+		memory '32 GB'
+		time '30m'
+		tag "$prefix"
 
-	output:
-		set val(prefix), file(bedGraph), file("${prefix}.sorted.bam") into bamSamples
-		file("${prefix}.sorted.bam") into bamInit
+		input:
+				set val(prefix), file(bedGraph), val(cram) from samples
 
-	module 'samtools'
-	script:
-	"""
-	samtools view -@ 16 -b -1 -T ${params.reffasta} ${cram} > ${prefix}.sorted.bam
-	"""
+		output:
+				set val(prefix), file(bedGraph), file("${prefix}.sorted.bam") into bamSamples
+				file("${prefix}.sorted.bam") into bamInit
+
+		module 'samtools'
+		script:
+		"""
+		samtools view -@ 16 -b -1 -T ${params.reffasta} ${cram} > ${prefix}.sorted.bam
+		"""
+		}
+} else {
+		// We generate bam names from bedgraph names to ensure that they match.
+		samples = Channel
+		.fromPath(params.bedgraphs)
+		.map { file -> tuple(file.baseName, file, "$params.bamDir" + "$file.baseName" + ".sorted.bam")}
+		.set() { bamSamples }
+
+		// Match what we do in the previous step in terms of variable names
+		bamInit = Channel
+		.fromPath(params.bedgraphs)
+		.map { it -> file("$params.bamDir" + "$it.baseName" + ".sorted.bam") }
 }
 
 allBam = bamInit
