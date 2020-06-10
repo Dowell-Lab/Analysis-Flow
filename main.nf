@@ -121,10 +121,11 @@ process filterIsoform {
 filteredIsoforms
 .into() { filteredIsoformsForSingleRef; filteredIsoformsForPausing }
 
-// Use a seeded random number to take the same sample every time.
+// Use the first sample in the list (sorted by name) as the reference.
+// There isn't much consistency in isoforms when comparing across samples
 singleRef = filteredIsoformsForSingleRef
-.randomSample(1, 3432)
-.first()
+.toSortedList()
+.map() { it -> it[0] }
 
 // Step 2.1 -- Generate counts for DESeq2
 process countsForDESeq {
