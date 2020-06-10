@@ -278,6 +278,7 @@ process calcPauseIndices {
   publishDir "${params.outdir}/pausing/", mode: 'copy', pattern: "*.data", overwrite: true
 	input:
 		set val(prefix), file(bedGraph), file(isoformMax) from filteredIsoformsForPausing
+		set val(prefix), _, val(isoform_max_single) from singleRef
 
 	output:
 		set val(prefix), file("*.data") into pauseIndices
@@ -285,9 +286,9 @@ process calcPauseIndices {
 	script:
 	"""
 	calculate_pause_index_to_polya.sh \
-	  --ref=${isoformMax} \
+	  --ref=${isoform_max_single} \
 		--pus=${params.pauseUpstream} \
-		--pds=${params.pauseUpstream} \
+		--pds=${params.pauseDownstream} \
 		--gds=${params.pauseTag} \
 		--outdir=. \
 		--bedfile=${bedGraph}
