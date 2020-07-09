@@ -42,7 +42,7 @@ condTable = Channel
 .groupTuple(by: 1)
 .map() { [(it[1]): (it[0])] }
 .reduce { a, b -> a+b }
-.view() {"COND: $it"}
+.view() {"[Log]: Conditions table is $it"}
 
 designTable = Channel
 .fromPath(params.designTable)
@@ -51,8 +51,9 @@ designTable = Channel
 
 
 // Step 0 -- Convert cram to bam if needed
-if (!"$params.bamDir") {
+if ("$params.cramDir") {
 		// We generate cram names from bedgraph names to ensure that they match.
+		println "[Log]: Creating BAM files from CRAM files..."
 		samples = Channel
 		.fromPath(params.bedgraphs)
 		.map { file -> tuple(file.baseName, file, "$params.cramDir" + "$file.baseName" + ".sorted.cram")}
@@ -211,8 +212,8 @@ process runPCA {
 process countsForMetagene {
 	cpus 8
 	memory '16 GB'
-	time '30m'
-  tag "$prefix"
+		time '60m'
+		tag "$prefix"
   publishDir "${params.outdir}/counts/", mode: 'copy', pattern: "metagene_counts*.txt*", overwrite: true
 	input:
 		set val(prefix), file(bedGraph), val(isoform_max) from singleRef

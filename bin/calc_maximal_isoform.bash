@@ -84,10 +84,10 @@ FinalOut="$FinalFPKM".bed
 ## and drops out any non NM_ coded genes, since for the purpose of
 ## this script we only care about protein coding genes.
 logr "Filtering RefSeq Annotations by Strand for ""$InterestFile"	&
-grep NM "$RefSeq" | awk -v OFS='\t' '{if ($6 == "+") print $4, $1, $2, $3, "+"}'\
-												> "$PosRefFile" &
-grep NM "$RefSeq" | awk -v OFS='\t' '{if ($6 == "-") print $4, $1, $2, $3, "-"}'\
-												> "$NegRefFile" &
+<"$RefSeq" awk -v OFS='\t' '{if ($6 == "+") print $4, $1, $2, $3, "+"}'\
+ > "$PosRefFile" &
+<"$RefSeq" awk -v OFS='\t' '{if ($6 == "-") print $4, $1, $2, $3, "-"}'\
+ > "$NegRefFile" &
 wait
 
 ## Here, we make sure that our bam file is indexed and if not, perform

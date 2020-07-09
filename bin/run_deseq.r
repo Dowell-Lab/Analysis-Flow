@@ -43,8 +43,10 @@ print("parsed args / imported data")
 ## Set up a function for plotting
 ## This is used later to do all the analysis + plotting
 makefig <- function(deseqdata, fileprefix) {
-    res <- DESeq2::results(deseqdata)
-    table(res$padj < 0.05)
+    print(resultsNames(deseqdata))
+    res <- DESeq2::results(deseqdata, contrast=c("condition", name_i, name_j))
+    print(mcols(res, use.names=TRUE))
+    ## table(res$padj < 0.05)
     ## Order by adjusted p-value
     res <- res[order(res$padj), ]
     ## Merge with normalized count data
@@ -55,18 +57,27 @@ makefig <- function(deseqdata, fileprefix) {
     ## Write results in the default format
     write.csv(resdata, file = paste0(fileprefix, "-diffexpr-results.csv"))
 
-                                        # Generate the MA plot
+    ## Generate the MA plot
     p_thresh <- 0.005
     p_str_signif <- str_c("p < ", p_thresh)
     p_str_not_signif <- str_c("p >= ", p_thresh)
     black <- "#1b1b1b"
     red <- "#d50000"
     res$pvalue <- res$pvalue %>% replace_na(1)
-    res_df <- as_tibble(res) %>% mutate(signif = pvalue < p_thresh)
+    res_df <- as_tibble(res) %>% mutate(signif_ini = ifelse(pvalue < p_thresh,
+                                                            "Significant",
+                                                            "Not Significant"),
+                                        signif = factor(signif_ini,
+                                                        levels=c("Significant",
+                                                                 "Not Significant")))
     ylims <- c(quantile(res_df$log2FoldChange, 0.001, na.rm = TRUE),
                quantile(res_df$log2FoldChange, 0.999, na.rm = TRUE))
-    ggplot(data = res_df) +
-        geom_point(aes(x = baseMean, y = log2FoldChange, color = signif),
+    ggplot() +
+        geom_point(data = subset(res_df, signif == "Not Significant"),
+                   aes(x = baseMean, y = log2FoldChange, color = signif),
+                   size = 1.00) +
+        geom_point(data = subset(res_df, signif == "Significant"),
+                   aes(x = baseMean, y = log2FoldChange, color = signif),
                    size = 1.00) +
         scale_x_log10() +
         lims(y = ylims) +
@@ -85,14 +96,19 @@ makefig <- function(deseqdata, fileprefix) {
         ggsave(paste0(fileprefix, "-diffexpr-maplot.pdf"), width = 8, height = 4.5)
 
     ## Generate a tsv with results
-    write.table(na.omit(as.data.frame(res[2])),
-                file = paste0(fileprefix, "-genes_for_gsea.txt"), row.names = TRUE,
-                quote = FALSE)
+    ## write.table(na.omit(as.data.frame(res[2])),
+    ##             file = paste0(fileprefix, "-genes_for_gsea.txt"), row.names = TRUE,
+    ##             quote = FALSE)
+
+    ## Generate an output table
+    ## res_fin <- res %>% as_tibble %>% rownames_to_column(var = "rowname") %>% full_join(idConvert)
     write.table(res, file = paste0(fileprefix, "-DESeq.res.txt"), append = FALSE, sep = "\t")
 
     ## Generate preranked file for GSEA
-    rnkdf <- tibble(gene = rownames(res), rnk = res$pvalue / sign(res$log2FoldChange)) %>%
+    rnkdf <- tibble(gene = rownames(res), rnk = res$log2FoldChange) %>%
         arrange(desc(rnk)) %>% drop_na()
+    ## rnkdf <- tibble(gene = rownames(res), rnk = -log10(res$pvalue) / sign(res$log2FoldChange)) %>%
+    ##     arrange(desc(rnk)) %>% drop_na()
     write.table(rnkdf, file = paste0(fileprefix, ".rnk"),
                 append = FALSE, col.names = FALSE, row.names = FALSE,
                 quote = FALSE, sep = "\t")
@@ -104,40 +120,40 @@ makefig <- function(deseqdata, fileprefix) {
 idConvert <- read_delim(conversion_file,
                         col_names = c("rowname", "common"), delim = " ")
 
-## Experimental condition
-condition <- factor(c(rep(name_i, length(group_i)), rep(name_j, length(group_j))),
-                    levels=c(name_i, name_j))
-condition <- relevel(condition, name_j)
-print(condition)
-
 ## We have to fix the counts table by removing the first row, hence "counts_fix.txt"
 seqdata <- read.delim(counts_file, stringsAsFactors = FALSE, header = TRUE,
-                           row.names = 1)
+                      row.names = 1)
 ## Then, we filter to only include the resolved isoforms
 df <- as_tibble(rownames_to_column(seqdata)) %>%
-    left_join(idConvert) %>%
-    distinct(common, .keep_all = TRUE)
+    left_join(idConvert) %>% distinct(common, .keep_all = TRUE)
 
 ## Set the rownames like DESeq2 requires
-dt <- data.frame(df)
-rownames(dt) <- dt$common
+dt <- data.frame(df) %>% distinct(rowname, .keep_all = TRUE)
+rownames(dt) <- dt$rowname
 dt$common <- NULL
 
 ## Now, actually perform DE-Seq
 countdata <- dt[, 7:ncol(dt)]
 countdata <- as.matrix(countdata)
 
-coldata <- data.frame(row.names = colnames(countdata), condition)
-countdata <- countdata[, rownames(coldata)]
+## Experimental condition
+condition <- factor(c(rep(name_i, length(group_i)), rep(name_j, length(group_j))),
+                    levels = c(name_i, name_j))
+coldata <- data.frame(condition, row.names = c(paste0(group_i, ".sorted.bam"),
+                                               paste0(group_j, ".sorted.bam")))
+countdata <- countdata[, row.names(coldata)]
+head(coldata)
 
 if (!all(rownames(coldata) == colnames(countdata))) {
     print("Error. Matrix and count labels do not match.")
     quit(status = 1, "no")
 }
 
+print("Errors1")
 dds <- DESeqDataSetFromMatrix(countData = countdata,
                               colData = coldata,
                               design = ~condition)
+print("Errors2")
 dds <- DESeq(dds)
 
 ctrl <- makefig(dds, comparison)

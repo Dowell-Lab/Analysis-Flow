@@ -11,7 +11,7 @@
 #	-	Update usage message...
 
 # Strict error checking
-set -e
+set -exo pipefail
 # set -o nounset
 set -o errexit
 #	Assume only	utf-8
@@ -73,6 +73,8 @@ while [ "$1" != "" ]; do
 		shift
 done
 
+set -u
+
 # Set Gene Downstream. This will need to change once we add support
 # for multiple modes of operation in a single script.
 gus=$(echo "$pds+1" | bc)
@@ -97,28 +99,28 @@ OutFile="$outdir"/"$baseBed"_pause_ratios_"$gds".data
 #	During debugging, we write out all output to disk so that we can
 #	examine it and see what's going on with our script changes. This is
 #	not necessary during production.
-testing=false
+testing=true
 
 if $testing; then
 		# Variables	-	DEBUG
+		DirPrefix="."
 		echo "[LOG] Running ""$bedfile"" in Debug Mode"
-		TmpDir=charli_pi
 
-		OutGenePosFile=$DirPrefix/$TmpDir/"$bedfile"_"$gds"_pos_tss.bed
-		OutBodyPosFile=$DirPrefix/$TmpDir/"$bedfile"_"$gds"_pos_body.bed
-		OutGeneNegFile=$DirPrefix/$TmpDir/"$bedfile"_"$gds"_neg_tss.bed
-		OutBodyNegFile=$DirPrefix/$TmpDir/"$bedfile"_"$gds"_neg_body.bed
+		OutGenePosFile=$DirPrefix/"$bedfile"_"$gds"_pos_tss.bed
+		OutBodyPosFile=$DirPrefix/"$bedfile"_"$gds"_pos_body.bed
+		OutGeneNegFile=$DirPrefix/"$bedfile"_"$gds"_neg_tss.bed
+		OutBodyNegFile=$DirPrefix/"$bedfile"_"$gds"_neg_body.bed
 
-		InterestFilePos=$DirPrefix/$TmpDir/"$bedfile"_"$gds"_interest_pos.bed
-		InterestFileNeg=$DirPrefix/$TmpDir/"$bedfile"_"$gds"_interest_neg.bed
+		InterestFilePos=$DirPrefix/"$bedfile"_"$gds"_interest_pos.bed
+		InterestFileNeg=$DirPrefix/"$bedfile"_"$gds"_interest_neg.bed
 
-		GeneOutPos=$DirPrefix/$TmpDir/"$bedfile"_"$gds"_out_gene_pos.bed
-		GeneOutNeg=$DirPrefix/$TmpDir/"$bedfile"_"$gds"_out_gene_neg.bed
-		BodyOutPos=$DirPrefix/$TmpDir/"$bedfile"_"$gds"_out_body_pos.bed
-		BodyOutNeg=$DirPrefix/$TmpDir/"$bedfile"_"$gds"_out_body_neg.bed
+		GeneOutPos=$DirPrefix/"$bedfile"_"$gds"_out_gene_pos.bed
+		GeneOutNeg=$DirPrefix/"$bedfile"_"$gds"_out_gene_neg.bed
+		BodyOutPos=$DirPrefix/"$bedfile"_"$gds"_out_body_pos.bed
+		BodyOutNeg=$DirPrefix/"$bedfile"_"$gds"_out_body_neg.bed
 
-		FinalPos=$DirPrefix/$TmpDir/"$bedfile"_"$gds"_out_final_pos.bed
-		FinalNeg=$DirPrefix/$TmpDir/"$bedfile"_"$gds"_out_final_neg.bed
+		FinalPos=$DirPrefix/"$bedfile"_"$gds"_out_final_pos.bed
+		FinalNeg=$DirPrefix/"$bedfile"_"$gds"_out_final_neg.bed
 
 else
 
