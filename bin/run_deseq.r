@@ -30,11 +30,11 @@ parser$add_argument("-t", "--conversion_table", action="store", dest="conversion
 args <- parser$parse_args()
 
 counts_file <- args$counts_file
-group_i <- args$group_i
-group_j <- args$group_j
-name_i <- args$name_i
-name_j <- args$name_j
-conversion_file <- args$conversion_file
+group_i <- paste0(args$group_i)
+group_j <- paste0(args$group_j)
+name_i <- paste0(args$name_i)
+name_j <- paste0(args$name_j)
+conversion_file <- paste0(args$conversion_file)
 comparison <- paste0(name_i, "_vs_", name_j)
 legend_title <- paste0("(", name_i, " / ", name_j, ")")
 
