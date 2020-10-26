@@ -39,7 +39,7 @@ NUM_CORES=8
 
 # TmpDir=/scratch/Users/zama8258/processed_nascent/scratch/features
 BaseDir="$PWD"
-outFull="$BaseDir"/counts_full.txt
+outFull="$BaseDir"/counts_"$1".txt
 safFull="$BaseDir"/full.saf
 
 ## Generate the SAF File

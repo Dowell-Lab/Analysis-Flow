@@ -51,7 +51,7 @@ designTable = Channel
 
 
 // Step 0 -- Convert cram to bam if needed
-if ("$params.cramDir") {
+if ( params.cramDir ) {
 		// We generate cram names from bedgraph names to ensure that they match.
 		println "[Log]: Creating BAM files from CRAM files..."
 		samples = Channel
@@ -70,6 +70,7 @@ if ("$params.cramDir") {
 		output:
 				set val(prefix), file(bedGraph), file("${prefix}.sorted.bam") into bamSamples
 				file("${prefix}.sorted.bam") into bamInit
+				file("${prefix}.sorted.bam") into bamForDESeqCounts
 
 		module 'samtools'
 		script:
@@ -85,13 +86,11 @@ if ("$params.cramDir") {
 		.set() { bamSamples }
 
 		// Match what we do in the previous step in terms of variable names
-		bamInit = Channel
+		(bamInit, bamForDESeqCounts) = Channel
 		.fromPath(params.bedgraphs)
 		.map { it -> file("$params.bamDir" + "$it.baseName" + ".sorted.bam") }
+		.into(2)
 }
-
-allBam = bamInit
-.toSortedList()
 
 // Step 1 -- Filter for maximal isoforms
 process filterIsoform {
@@ -128,20 +127,23 @@ singleRef = filteredIsoformsForSingleRef
 .toSortedList()
 .map() { it -> it[0] }
 
-// Step 2.1 -- Generate counts for DESeq2
-process countsForDESeq {
+// We want to generate counts separately for each bam file
+allBam = bamInit
+.toSortedList()
+
+// Step 2.1 -- Generate counts for DESeq2 independently to correct strandedness
+process individualCountsForDESeq {
 	cpus 8
 	memory '16 GB'
 	time '30m'
   tag "$prefix"
-  publishDir "${params.outdir}/counts/", mode: 'copy', pattern: "counts*.txt*", overwrite: true
+  publishDir "${params.outdir}/counts/", mode: 'copy', pattern: "counts*.txt", overwrite: true
 	input:
 		set val(prefix), file(bedGraph), val(isoform_max) from singleRef
-		file(bam) from allBam
+		file(bam) from bamForDESeqCounts
 
 	output:
-		file("counts*.txt") into countsTableForDESeq
-		file("counts*.txt") into countsTableForPCA
+		file("*_without_header") into countsTableIndividual
 
 	module 'python/3.6.3'
 	module 'bedtools'
@@ -150,15 +152,45 @@ process countsForDESeq {
 	"""
 	# Export array as a function to get it into the script.
 	function exportArray {
-	  BamFiles=(${bam})
+	  BamFiles=("${bam}")
 	}
 	export -f exportArray
 	export InFile=${isoform_max}
-	bash -c \"exportArray; . counts_for_deseq.bash\"
+	bash -c \"exportArray; . counts_for_deseq.bash ${bam}\"
 	"""
 }
 
-// Step 2.2 -- Run Differential Expression Analysis
+allCounts = countsTableIndividual
+		.toSortedList()
+
+// Step 2.2
+process mergedCountsForDESeq {
+	cpus 1
+	memory '2 GB'
+	time '10m'
+  tag "$prefix"
+  publishDir "${params.outdir}/counts/", mode: 'copy', pattern: "counts_merged.txt*", overwrite: true
+	input:
+		set val(prefix), file(bedGraph), val(isoform_max) from singleRef
+		file(count) from allCounts
+
+	output:
+		file("counts_merged.txt") into countsTableForDESeq
+		file("counts_merged.txt") into countsTableForPCA
+
+	script:
+	"""
+  files=(${count})
+	num_files="\${#files[@]}"
+	echo "\$num_files"
+	paste \${files[@]} | \
+	awk -v count="\$num_files" \
+	'{printf "%s\\t%s\\t%s\\t%s\\t%s\\t%s", \$1, \$2, \$3, \$4, \$5, \$6;for(i=7;i<=NF;i=i+(NF/count)){printf "\\t%s", \$i}; printf "\\n"}' \
+  > counts_merged.txt
+	"""
+}
+
+// Step 2.3 -- Run Differential Expression Analysis
 process runDESeq {
 	cpus 1
 	memory '4 GB'
@@ -175,9 +207,8 @@ process runDESeq {
 
 	script:
 	"""
-	tail -n +2 ${counts} > ${counts}_fix
 	run_deseq.r \
-				-c ${counts}_fix \
+				-c ${counts} \
 				-gi \$(echo '${condition_dict.(condition[0])}' | sed -E -e 's/\\[|\\]|,//g') \
 				-gj \$(echo '${condition_dict.(condition[1])}' | sed -E -e 's/\\[|\\]|,//g') \
 				-ni ${condition[0]} \
@@ -187,7 +218,7 @@ process runDESeq {
 	"""
 }
 
-// Step 2.3 -- Run Principal Component Analysis
+// Step 2.4 -- Run Principal Component Analysis
 process runPCA {
 	cpus 1
 	memory '4 GB'
@@ -202,8 +233,7 @@ process runPCA {
 
 	script:
 	"""
-	tail -n +2 ${counts} > ${counts}_fix
-	run_pca.r -c ${counts}_fix
+	run_pca.r -c ${counts}
 	rm -f Rplots.pdf
 	"""
 }
