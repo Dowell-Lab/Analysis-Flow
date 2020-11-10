@@ -35,6 +35,9 @@ if (params.help){
     exit 0
 }
 
+// Set up some necessary constants
+strandedness = ["none":0, "forward": 1, "reverse": 2]
+
 // Parse the main conditions table for later use
 condTable = Channel
 .fromPath(params.conditionsTable)
@@ -44,6 +47,16 @@ condTable = Channel
 .reduce { a, b -> a+b }
 .view() {"[Log]: Conditions table is $it"}
 
+// Build the table mapping sample -> strandedness
+strandTable = Channel
+.fromPath(params.conditionsTable)
+.splitText() { tuple(it.split()[0], it.split()[2])}
+.map() { [(it[0]): strandedness.(it[1])] }
+.reduce { a, b -> a+b }
+.view() {"[Log]: Strand table is $it"}
+// .groupTuple(by: 1)
+
+// Build the design table
 designTable = Channel
 .fromPath(params.designTable)
 .splitText() { tuple(it.split()[0], it.split()[1])}
@@ -141,6 +154,7 @@ process individualCountsForDESeq {
 	input:
 		set val(prefix), file(bedGraph), val(isoform_max) from singleRef
 		file(bam) from bamForDESeqCounts
+		val(strand_dict) from strandTable
 
 	output:
 		file("*_without_header") into countsTableIndividual
@@ -156,7 +170,7 @@ process individualCountsForDESeq {
 	}
 	export -f exportArray
 	export InFile=${isoform_max}
-	bash -c \"exportArray; . counts_for_deseq.bash ${bam}\"
+	bash -c \"exportArray; . counts_for_deseq.bash ${bam} ${strand_dict.(bam.getSimpleName())}\"
 	"""
 }
 
