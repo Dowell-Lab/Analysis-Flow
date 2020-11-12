@@ -114,6 +114,7 @@ process filterIsoform {
   publishDir "${params.outdir}/isoform/", mode: 'copy', pattern: "*.sorted.isoform_max.bed", overwrite: true
 	input:
 		set val(prefix), file(bedGraph), val(bam) from bamSamples
+		val(strand_dict) from strandTable
 
 	output:
 		set val(prefix), file(bedGraph), file("*.sorted.isoform_max.bed") into filteredIsoforms
@@ -127,7 +128,7 @@ process filterIsoform {
 	export InterestFile=${bam}
 	export RefSeq=${params.refseq}
 	export ConversionFile=${params.conversionFile}
-	calc_maximal_isoform.bash
+	calc_maximal_isoform.bash ${strand_dict.(bedGraph.getSimpleName())}
 	"""
 }
 

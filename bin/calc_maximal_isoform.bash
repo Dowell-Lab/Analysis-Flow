@@ -107,7 +107,7 @@ if [ ! -f "$PosStrandSums" ] || [ ! -f "$NegStrandSums" ]; then
 		logr "Calculating Strand-Specific Coverage for BAM"
 		featureCounts \
 				-T "$NUM_CORES" \
-				-s 1 \
+				-s "$1" \
 				-F 'SAF' \
 				-a "$PosRefFile" \
 			 -o "$PosStrandSums"_tmp \
@@ -117,7 +117,7 @@ if [ ! -f "$PosStrandSums" ] || [ ! -f "$NegStrandSums" ]; then
 				grep -v ';' > "$PosStrandSums"
 		featureCounts \
 				-T "$NUM_CORES" \
-				-s 1 \
+				-s "$1" \
 				-F 'SAF' \
 				-a "$NegRefFile" \
 				-o "$NegStrandSums"_tmp \
