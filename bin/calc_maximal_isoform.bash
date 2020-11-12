@@ -108,16 +108,18 @@ if [ ! -f "$PosStrandSums" ] || [ ! -f "$NegStrandSums" ]; then
 		featureCounts \
 				-T "$NUM_CORES" \
 				-s "$1" \
+				"$2" \
 				-F 'SAF' \
 				-a "$PosRefFile" \
-			 -o "$PosStrandSums"_tmp \
-			 $InterestFile
+				-o "$PosStrandSums"_tmp \
+				$InterestFile
 		tail -n +3 "$PosStrandSums"_tmp | \
 				awk -v OFS='\t' '{print $2, $3, $4, $1, 0, $5, $7}' | \
 				grep -v ';' > "$PosStrandSums"
 		featureCounts \
 				-T "$NUM_CORES" \
 				-s "$1" \
+				"$2" \
 				-F 'SAF' \
 				-a "$NegRefFile" \
 				-o "$NegStrandSums"_tmp \

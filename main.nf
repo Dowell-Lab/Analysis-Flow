@@ -37,6 +37,7 @@ if (params.help){
 
 // Set up some necessary constants
 strandedness = ["none":0, "forward": 1, "reverse": 2]
+fragmentedness = ["reads": "'\'", "fragments": "-p"]
 
 // Parse the main conditions table for later use
 condTable = Channel
@@ -54,7 +55,13 @@ strandTable = Channel
 .map() { [(it[0]): strandedness.(it[1])] }
 .reduce { a, b -> a+b }
 .view() {"[Log]: Strand table is $it"}
-// .groupTuple(by: 1)
+
+fragmentTable = Channel
+.fromPath(params.conditionsTable)
+.splitText() { tuple(it.split()[0], it.split()[3])}
+.map() { [(it[0]): fragmentedness.(it[1])] }
+.reduce { a, b -> a+b }
+.view() {"[Log]: Fragment table is $it"}
 
 // Build the design table
 designTable = Channel
@@ -115,6 +122,7 @@ process filterIsoform {
 	input:
 		set val(prefix), file(bedGraph), val(bam) from bamSamples
 		val(strand_dict) from strandTable
+		val(fragment_dict) from fragmentTable
 
 	output:
 		set val(prefix), file(bedGraph), file("*.sorted.isoform_max.bed") into filteredIsoforms
@@ -128,7 +136,7 @@ process filterIsoform {
 	export InterestFile=${bam}
 	export RefSeq=${params.refseq}
 	export ConversionFile=${params.conversionFile}
-	calc_maximal_isoform.bash ${strand_dict.(bedGraph.getSimpleName())}
+	calc_maximal_isoform.bash ${strand_dict.(bedGraph.getSimpleName())} ${fragment_dict.(bedGraph.getSimpleName())}
 	"""
 }
 
@@ -156,6 +164,7 @@ process individualCountsForDESeq {
 		set val(prefix), file(bedGraph), val(isoform_max) from singleRef
 		file(bam) from bamForDESeqCounts
 		val(strand_dict) from strandTable
+		val(fragment_dict) from fragmentTable
 
 	output:
 		file("*_without_header") into countsTableIndividual
@@ -171,7 +180,7 @@ process individualCountsForDESeq {
 	}
 	export -f exportArray
 	export InFile=${isoform_max}
-	bash -c \"exportArray; . counts_for_deseq.bash ${bam} ${strand_dict.(bam.getSimpleName())}\"
+	bash -c \"exportArray; . counts_for_deseq.bash ${bam} ${strand_dict.(bam.getSimpleName())} ${fragment_dict.(bam.getSimpleName())}\"
 	"""
 }
 

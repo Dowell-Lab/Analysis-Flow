@@ -53,7 +53,8 @@ logr "Intersecting the Reference Sequence"
 logr "Performing Featurecounts (Full Gene)"
 featureCounts \
 		-T "$NUM_CORES" \
-		-s $2 \
+		"$3" \
+		-s "$2" \
 		-F 'SAF' \
 		-a "$safFull" \
 		-o "$outFull" \
