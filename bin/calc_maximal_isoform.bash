@@ -109,6 +109,7 @@ if [ ! -f "$PosStrandSums" ] || [ ! -f "$NegStrandSums" ]; then
 				-T "$NUM_CORES" \
 				-s "$1" \
 				"$2" \
+				-O \
 				-F 'SAF' \
 				-a "$PosRefFile" \
 				-o "$PosStrandSums"_tmp \
@@ -120,6 +121,7 @@ if [ ! -f "$PosStrandSums" ] || [ ! -f "$NegStrandSums" ]; then
 				-T "$NUM_CORES" \
 				-s "$1" \
 				"$2" \
+				-O \
 				-F 'SAF' \
 				-a "$NegRefFile" \
 				-o "$NegStrandSums"_tmp \
