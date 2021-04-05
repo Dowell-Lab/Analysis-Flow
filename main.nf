@@ -36,8 +36,9 @@ if (params.help){
 }
 
 // Set up some necessary constants
-strandedness = ["none":0, "forward": 1, "reverse": 2]
+strandedness = ["none": 0, "forward": 1, "reverse": 2]
 fragmentedness = ["reads": "'\'", "fragments": "-p"]
+sample_type = ["RNA": "rna", "Nascent": "nascent"]
 
 // Parse the main conditions table for later use
 condTable = Channel
@@ -56,12 +57,21 @@ strandTable = Channel
 .reduce { a, b -> a+b }
 .view() {"[Log]: Strand table is $it"}
 
+// Build the table mapping sample -> fragmentedness
 fragmentTable = Channel
 .fromPath(params.conditionsTable)
 .splitText() { tuple(it.split()[0], it.split()[3])}
 .map() { [(it[0]): fragmentedness.(it[1])] }
 .reduce { a, b -> a+b }
 .view() {"[Log]: Fragment table is $it"}
+
+// Build the table mapping sample -> protocol type
+protocolTable = Channel
+.fromPath(params.conditionsTable)
+.splitText() { tuple(it.split()[0], it.split()[4])}
+.map() { [(it[0]): sample_type.(it[1])] }
+.reduce { a, b -> a+b }
+.view() {"[Log]: Protocol table is $it"}
 
 // Build the design table
 designTable = Channel
@@ -145,9 +155,35 @@ filteredIsoforms
 
 // Use the first sample in the list (sorted by name) as the reference.
 // There isn't much consistency in isoforms when comparing across samples
-singleRef = filteredIsoformsForSingleRef
+filteredIsoformsForSingleRef
 .toSortedList()
 .map() { it -> it[0] }
+.into() { singleRef; singleRefForGTF }
+
+// Generate a GTF using filtered isoforms for nascent data
+process genIsoformGTF {
+	cpus 4
+	memory '16 GB'
+	time '1h'
+  tag "$prefix"
+  publishDir "${params.outdir}/isoform/", mode: 'copy', pattern: "single_isoform_max.gtf", overwrite: true
+	input:
+	  file(singleRefForGTF) from singleRefForGTF
+
+	output:
+		file("single_isoform_max.bed") into singleRefGTF
+
+	module 'python/3.6.3'
+	module 'bedtools'
+	module 'subread'
+	script:
+	"""
+	saf_gtf_filter.r \
+				-g ${params.refgtf} \
+				-t ${singleRefForGTF}
+				-o single_isoform_max.gtf
+	"""
+}
 
 // We want to generate counts separately for each bam file
 allBam = bamInit
@@ -180,7 +216,7 @@ process individualCountsForDESeq {
 	}
 	export -f exportArray
 	export InFile=${isoform_max}
-	bash -c \"exportArray; . counts_for_deseq.bash ${bam} ${strand_dict.(bam.getSimpleName())} ${fragment_dict.(bam.getSimpleName())}\"
+	bash -c \"exportArray; . counts_for_deseq.bash ${bam} ${strand_dict.(bam.getSimpleName())?: ""} ${fragment_dict.(bam.getSimpleName())?: ""}\"
 	"""
 }
 
@@ -335,6 +371,9 @@ process calcPauseIndices {
 	input:
 		set val(prefix), file(bedGraph), file(isoformMax) from filteredIsoformsForPausing
 		set val(prefix), _, val(isoform_max_single) from singleRef
+
+  when:
+	  strand_dict.(bedGraph.getSimpleName())?: "nascent" == "nascent"
 
 	output:
 		set val(prefix), file("*.data") into pauseIndices

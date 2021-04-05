@@ -31,12 +31,23 @@
 ##
 ### Code:
 
-library('tidyverse')
+suppressMessages(library("tidyverse"))
+suppressMessages(library("argparse"))
+
+## Argument Parsing
+parser <- ArgumentParser()
+parser$add_argument("-g", "--gtf_file", action="store", dest="gtf_file",
+                    help="The gtf table to use")
+parser$add_argument("-s", "--saf_file", action="store", dest="saf_file",
+                    help="The saf table to use")
+parser$add_argument("-o", "--out_file", action="store", dest="out_file",
+                    help="The out file to use")
+args <- parser$parse_args()
 
 ## Sample files (TODO switch to argparse)
-gtf <- "/hdd/data/dna_lab/nina/data/hg38_refseq.gtf"
-saf <- "/hdd/data/dna_lab/sequencing_analysis_utils/data/full.saf"
-out_gtf <- "/hdd/data/dna_lab/nina/data/hg38_refseq_isoforms.gtf"
+gtf <- args$gtf_file
+saf <- args$saf_file
+out_gtf <- args$out_file
 
 gtf_df <- read_delim(gtf, delim="\t", col_names=FALSE) %>%
     separate(X9, c("n1", "geneid", "n2", "txid"), sep = " ") %>%
