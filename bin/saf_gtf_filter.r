@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 ### saf_gtf_filter.r --- Filter a GTF file using a SAF file
 ##
 ## Filename: saf_gtf_filter.r

@@ -168,19 +168,20 @@ process genIsoformGTF {
   tag "$prefix"
   publishDir "${params.outdir}/isoform/", mode: 'copy', pattern: "single_isoform_max.gtf", overwrite: true
 	input:
-	  file(singleRefForGTF) from singleRefForGTF
+		set val(prefix), file(bedGraph), file(isoform_max) from singleRefForGTF
 
 	output:
-		file("single_isoform_max.bed") into singleRefGTF
+		set file("single_isoform_max.gtf"), file("isoform_max.saf") into singleRefGTF
 
 	module 'python/3.6.3'
 	module 'bedtools'
 	module 'subread'
 	script:
 	"""
+	awk -v OFS='\t' '{print \$4, \$1, \$2, \$3, \$6}' "${isoform_max}" > isoform_max.saf
 	saf_gtf_filter.r \
 				-g ${params.refgtf} \
-				-t ${singleRefForGTF}
+				-s isoform_max.saf \
 				-o single_isoform_max.gtf
 	"""
 }
@@ -197,8 +198,8 @@ process individualCountsForDESeq {
   tag "$prefix"
   publishDir "${params.outdir}/counts/", mode: 'copy', pattern: "counts*.txt", overwrite: true
 	input:
-		set val(prefix), file(bedGraph), val(isoform_max) from singleRef
-		file(bam) from bamForDESeqCounts
+		each file(bam) from bamForDESeqCounts
+		set file(single_gtf), file(single_saf) from singleRefGTF
 		val(strand_dict) from strandTable
 		val(fragment_dict) from fragmentTable
 
@@ -210,12 +211,21 @@ process individualCountsForDESeq {
 	module 'subread'
 	script:
 	"""
+	# Set up variables we need
+	refFlag='SAF'
+	refFile=${single_saf}
+	if [ ${sample_type.(bam.getSimpleName())} == RNA ]
+	then 
+	    refFlag='GTF'
+	    refFile=${single_gtf}
+	fi
+	export refFlag
+	export refFile
 	# Export array as a function to get it into the script.
 	function exportArray {
 	  BamFiles=("${bam}")
 	}
 	export -f exportArray
-	export InFile=${isoform_max}
 	bash -c \"exportArray; . counts_for_deseq.bash ${bam} ${strand_dict.(bam.getSimpleName())?: ""} ${fragment_dict.(bam.getSimpleName())?: ""}\"
 	"""
 }
@@ -298,6 +308,7 @@ process runPCA {
 	"""
 }
 
+/*
 // Step 3.1 -- Generate counts for metagene analysis
 process countsForMetagene {
 	cpus 8
@@ -359,6 +370,7 @@ process runMetagene {
 	rm -f Rplots.pdf
 	"""
 }
+*/
 
 // Step 4.1 -- Calculate pause index values
 process calcPauseIndices {
@@ -373,7 +385,7 @@ process calcPauseIndices {
 		set val(prefix), _, val(isoform_max_single) from singleRef
 
   when:
-	  strand_dict.(bedGraph.getSimpleName())?: "nascent" == "nascent"
+	  sample_type.(bedGraph.getSimpleName()) == "nascent"
 
 	output:
 		set val(prefix), file("*.data") into pauseIndices
