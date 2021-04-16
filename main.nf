@@ -125,8 +125,11 @@ if ( params.cramDir ) {
 // Step 1 -- Filter for maximal isoforms
 process filterIsoform {
 	cpus 4
-	memory '16 GB'
-	time '1h'
+	memory { 16.GB * task.attempt }
+	time { 1h * task.attempt }
+	errorStrategy { task.exitStatus == 143 ? 'retry' : 'terminate' }
+	maxRetries 3
+	maxErrors -1
   tag "$prefix"
   publishDir "${params.outdir}/isoform/", mode: 'copy', pattern: "*.sorted.isoform_max.bed", overwrite: true
 	input:
@@ -212,12 +215,13 @@ process individualCountsForDESeq {
 	script:
 	"""
 	# Set up variables we need
-	refFlag='SAF'
-	refFile=${single_saf}
 	if [ ${sample_type.(bam.getSimpleName())} == RNA ]
 	then 
-	    refFlag='GTF'
-	    refFile=${single_gtf}
+	  refFlag='GTF'
+	  refFile=${single_gtf}
+	else
+		refFlag='SAF'
+		refFile=${single_saf}
 	fi
 	export refFlag
 	export refFile
