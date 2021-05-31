@@ -43,6 +43,12 @@ R -e "if (!requireNamespace('BiocManager', quietly = TRUE)) install.packages('Bi
 R -e "BiocManager::install(c('limma', 'sva', 'DESeq2'))"
 ```
 
+## Experimental Features
+
+This pipeline currently supports some experimental features for making
+both nascent and rna-seq data run successfully in a single run. Ask
+Zach for more detail.
+
 ## Incomplete Tasks
 
 - Wrap up all the dependencies in a Singularity container to make

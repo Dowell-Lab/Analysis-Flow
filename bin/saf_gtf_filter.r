@@ -61,7 +61,7 @@ filtered_df <- gtf_df %>% semi_join(saf_df, by=c("geneid")) %>%
     mutate(geneid=paste0('"', geneid, '";')) %>%
     unite(metadata, n1, geneid, n2, txid, sep=" ")
 
-write_tsv(filtered_df, out_gtf, col_names = FALSE)
+write_tsv(filtered_df, out_gtf, col_names = FALSE, quote_escape = "none")
 
 ######################################################################
 ### saf_gtf_filter.r ends here

@@ -149,11 +149,9 @@ if (!all(rownames(coldata) == colnames(countdata))) {
     quit(status = 1, "no")
 }
 
-print("Errors1")
 dds <- DESeqDataSetFromMatrix(countData = countdata,
                               colData = coldata,
                               design = ~condition)
-print("Errors2")
 dds <- DESeq(dds)
 
 ctrl <- makefig(dds, comparison)

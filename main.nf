@@ -59,25 +59,28 @@ strandTable = Channel
 
 // Build the table mapping sample -> fragmentedness
 fragmentTable = Channel
-.fromPath(params.conditionsTable)
-.splitText() { tuple(it.split()[0], it.split()[3])}
-.map() { [(it[0]): fragmentedness.(it[1])] }
-.reduce { a, b -> a+b }
-.view() {"[Log]: Fragment table is $it"}
+		.fromPath(params.conditionsTable)
+		.splitText() { tuple(it.split()[0], it.split()[3])}
+		.map() { [(it[0]): fragmentedness.(it[1])] }
+		.reduce { a, b -> a+b }
+		.view() {"[Log]: Fragment table is $it"}
 
 // Build the table mapping sample -> protocol type
-protocolTable = Channel
+Channel
 .fromPath(params.conditionsTable)
 .splitText() { tuple(it.split()[0], it.split()[4])}
 .map() { [(it[0]): sample_type.(it[1])] }
 .reduce { a, b -> a+b }
 .view() {"[Log]: Protocol table is $it"}
+.into() { protocolTable; protocolTableForList }
+
+protocol_dict = protocolTableForList.toList()
 
 // Build the design table
 designTable = Channel
-.fromPath(params.designTable)
-.splitText() { tuple(it.split()[0], it.split()[1])}
-.into() { designTableForDESeq; designTableForMetagene }
+		.fromPath(params.designTable)
+		.splitText() { tuple(it.split()[0], it.split()[1])}
+		.into() { designTableForDESeq; designTableForMetagene }
 
 
 // Step 0 -- Convert cram to bam if needed
@@ -125,12 +128,12 @@ if ( params.cramDir ) {
 // Step 1 -- Filter for maximal isoforms
 process filterIsoform {
 	cpus 4
-	memory { 16.GB * task.attempt }
-	time { 1h * task.attempt }
+	memory '16.GB'
+	time '1h'
 	errorStrategy { task.exitStatus == 143 ? 'retry' : 'terminate' }
 	maxRetries 3
 	maxErrors -1
-  tag "$prefix"
+	tag "$prefix"
   publishDir "${params.outdir}/isoform/", mode: 'copy', pattern: "*.sorted.isoform_max.bed", overwrite: true
 	input:
 		set val(prefix), file(bedGraph), val(bam) from bamSamples
@@ -169,12 +172,12 @@ process genIsoformGTF {
 	memory '16 GB'
 	time '1h'
   tag "$prefix"
-  publishDir "${params.outdir}/isoform/", mode: 'copy', pattern: "single_isoform_max.gtf", overwrite: true
+  publishDir "${params.outdir}/isoform/", mode: 'copy', pattern: "isoform_max.gtf", overwrite: true
 	input:
 		set val(prefix), file(bedGraph), file(isoform_max) from singleRefForGTF
 
 	output:
-		set file("single_isoform_max.gtf"), file("isoform_max.saf") into singleRefGTF
+		set file("isoform_max.gtf"), file("isoform_max.saf") into singleRefGTF
 
 	module 'python/3.6.3'
 	module 'bedtools'
@@ -185,7 +188,8 @@ process genIsoformGTF {
 	saf_gtf_filter.r \
 				-g ${params.refgtf} \
 				-s isoform_max.saf \
-				-o single_isoform_max.gtf
+				-o prelim_isoform_max.gtf
+	<prelim_isoform_max.gtf	sed -e 's/"gene/gene/g' -e 's/;"/;/g' > isoform_max.gtf
 	"""
 }
 
@@ -193,29 +197,35 @@ process genIsoformGTF {
 allBam = bamInit
 .toSortedList()
 
+// Add metadata here where it's easier to add
+bamAndProtocolForDESeqCounts = bamForDESeqCounts
+		.map{ a -> tuple(a, protocol_dict.(a.getSimpleName()).value[0] )}
+
 // Step 2.1 -- Generate counts for DESeq2 independently to correct strandedness
 process individualCountsForDESeq {
 	cpus 8
 	memory '16 GB'
 	time '30m'
   tag "$prefix"
-  publishDir "${params.outdir}/counts/", mode: 'copy', pattern: "counts*.txt", overwrite: true
+  publishDir "${params.outdir}/counts/individual/", mode: 'copy', pattern: "counts*", overwrite: true
+  publishDir "${params.outdir}/counts/individual/", mode: 'copy', pattern: "counts*", overwrite: true
 	input:
-		each file(bam) from bamForDESeqCounts
+		set file(bam), val(protocol) from bamAndProtocolForDESeqCounts
 		set file(single_gtf), file(single_saf) from singleRefGTF
 		val(strand_dict) from strandTable
 		val(fragment_dict) from fragmentTable
 
 	output:
-		file("*_without_header") into countsTableIndividual
+		set file("*_without_header"), file(bam) into countsTableIndividualForMerge
+		set file("*_without_header"), file(bam) into countsTableIndividualForSplit
 
-	module 'python/3.6.3'
-	module 'bedtools'
-	module 'subread'
-	script:
-	"""
+		module 'python/3.6.3'
+		module 'bedtools'
+		module 'subread'
+		script:
+		"""
 	# Set up variables we need
-	if [ ${sample_type.(bam.getSimpleName())} == RNA ]
+	if [[ "${protocol}" == "rna" ]]
 	then 
 	  refFlag='GTF'
 	  refFile=${single_gtf}
@@ -234,10 +244,19 @@ process individualCountsForDESeq {
 	"""
 }
 
-allCounts = countsTableIndividual
+// Separate into different counts tables to use different length
+// counting methods. We want to count the full gene for nascent and
+// only exons for RNA
+allCounts = countsTableIndividualForMerge
+		.map{a, b -> a}
 		.toSortedList()
 
+splitCounts = countsTableIndividualForSplit
+		.map{ a, b -> [protocol_dict.(b.getSimpleName()).value[0], a ]}
+		.groupTuple()
+
 // Step 2.2
+// TODO Separate out DESeq2 here
 process mergedCountsForDESeq {
 	cpus 1
 	memory '2 GB'
@@ -254,15 +273,41 @@ process mergedCountsForDESeq {
 
 	script:
 	"""
-  files=(${count})
+	files=(${count})
 	num_files="\${#files[@]}"
 	echo "\$num_files"
 	paste \${files[@]} | \
-	awk -v count="\$num_files" \
-	'{printf "%s\\t%s\\t%s\\t%s\\t%s\\t%s", \$1, \$2, \$3, \$4, \$5, \$6;for(i=7;i<=NF;i=i+(NF/count)){printf "\\t%s", \$i}; printf "\\n"}' \
-  > counts_merged.txt
+			awk -v count="\$num_files" \
+			'{printf "%s\\t%s\\t%s\\t%s\\t%s\\t%s", \$1, \$2, \$3, \$4, \$5, \$6;for(i=7;i<=NF;i=i+(NF/count)){printf "\\t%s", \$i}; printf "\\n"}' \
+			> counts_merged.txt
 	"""
 }
+
+process mergedCountsSeparated {
+	cpus 1
+	memory '2 GB'
+	time '10m'
+  tag "$prefix"
+  publishDir "${params.outdir}/counts/", mode: 'copy', pattern: "counts_*.txt*", overwrite: true
+	input:
+		set val(prefix), file(bedGraph), val(isoform_max) from singleRef
+		set val(protocol), file(counts) from splitCounts
+
+	output:
+		file("counts_${protocol}.txt") into countsTableMerged
+
+		script:
+		"""
+		files=(${counts})
+		num_files="\${#files[@]}"
+		echo "\$num_files"
+		paste \${files[@]} | \
+				awk -v count="\$num_files" \
+				'{printf "%s\\t%s\\t%s\\t%s\\t%s\\t%s", \$1, \$2, \$3, \$4, \$5, \$6;for(i=7;i<=NF;i=i+(NF/count)){printf "\\t%s", \$i}; printf "\\n"}' \
+				> counts_${protocol}.txt
+		"""
+}
+
 
 // Step 2.3 -- Run Differential Expression Analysis
 process runDESeq {
@@ -290,6 +335,9 @@ process runDESeq {
 				-t ${params.conversionFile}
 	rm -f Rplots.pdf
 	"""
+	// Probably need to reimplement DESeq2 conditions table using a
+	// dictionary since we're subsetting the data in an unpredictable
+	// way. This probably isn't too terrible to do.
 }
 
 // Step 2.4 -- Run Principal Component Analysis
@@ -389,7 +437,7 @@ process calcPauseIndices {
 		set val(prefix), _, val(isoform_max_single) from singleRef
 
   when:
-	  sample_type.(bedGraph.getSimpleName()) == "nascent"
+	  protocol_dict.(bedGraph.getSimpleName()) == "nascent"
 
 	output:
 		set val(prefix), file("*.data") into pauseIndices

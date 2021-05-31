@@ -61,18 +61,18 @@ then
 fi
 
 # Finally, run featurecounts to actually do the counting.
-		logr "Performing Featurecounts (Full Gene)"
-		featureCounts \
-				-T "$NUM_CORES" \
-				-s "$strandFlag" \
-				-F "$refFlag" \
-				-a "$refFile" \
-				-o "$outFull" \
-				${BamFiles[@]}
+logr "Performing Featurecounts (Full Gene)"
+featureCounts \
+		-T "$NUM_CORES" \
+		-s "$strandFlag" \
+		-F "$refFlag" \
+		-a "$refFile" \
+		-o "$outFull" \
+		${BamFiles[@]}
 
-		tail -n +2 "$outFull" > "$outFull"_without_header
+tail -n +2 "$outFull" > "$outFull"_"$refFlag"_counts_without_header
 
-		logr "Done"
+logr "Done"
 
-		#
-		# gen_featurecounts.sbatch ends here
+#
+# gen_featurecounts.sbatch ends here
