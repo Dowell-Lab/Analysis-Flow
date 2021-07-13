@@ -437,7 +437,7 @@ process calcPauseIndices {
 		set val(prefix), _, val(isoform_max_single) from singleRef
 
   when:
-	  protocol_dict.(bedGraph.getSimpleName()) == "nascent"
+		protocol_dict.(bedGraph.getSimpleName()).value[0] == "nascent"
 
 	output:
 		set val(prefix), file("*.data") into pauseIndices
