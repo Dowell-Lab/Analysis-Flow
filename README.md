@@ -1,15 +1,30 @@
 # Analysis Flow Pipeline
 
-**NOT READY FOR PUBLIC USE. PROCEED AT YOUR OWN RISK**
+**Pipelines do not supercede scientific critical thinking. You need to
+understand exactly what analyses you're doing and why.**
 
-This repository contains Zach's Analysis-Flow pipeline to perform basic
-analysis on processed sequencing data (Nascent and RNA-Seq). This pipeline
-performs the following:
+You should not run this pipeline without looking at the code for the
+analysis you're interested in and understanding the pitfalls and sharp
+edges of the tools used. This will not automatically analyze your data
+and then tell you exactly how to think about the results. The analyses
+in this pipeline are those commonly used in publications, and
+effectively generating those analyses and interpreting the results
+requires not just an understanding of the tools used but also the
+biological context of your experiment.
+
+This repository contains Zach's Analysis-Flow pipeline to perform
+basic analysis on processed sequencing data (Nascent and RNA-Seq).
+This pipeline performs the following:
 - Isoform filtering over RefSeq Genes
 - Differential Expression Analysis
 - Pause Index Analysis
 - Principal Component Analysis
 - Metagene Plot Generation
+
+This pipeline can also differentiate between single and paired end
+data as well as Nascent and RNA-seq protocols using a design table.
+This allows for complex experimental designs with disparate types of
+data to be analyzed together.
 
 To use this pipeline, you need to have run the Dowell Lab's
 RNASeq-Flow or Nascent-Flow pipeline first. Then, edit the
