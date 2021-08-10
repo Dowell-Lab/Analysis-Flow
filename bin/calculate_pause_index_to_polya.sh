@@ -79,7 +79,9 @@ set -u
 # for multiple modes of operation in a single script.
 gus=$(echo "$pds+1" | bc)
 
-echo "[PARAM] Up: $pus, Down: $pds, Gene Up: $gus, Gene Down: $gds, BEDFILE: $bedfile, Outdir: $outdir"
+echo "[PARAM] Upstream 5': $pus bp, Downstream 5': $pds bp"
+echo "[PARAM] Gene Body Start Coordinate: $gus, 3' Offset: $gds"
+echo "[PARAM] Bedfile: $bedfile, Outdir: $outdir"
 echo "[WARNING] Gene Down Parameter will not be used."
 
 # Make sure we have the necessary modules on the cluster
@@ -166,7 +168,7 @@ fi
 # to have mode support. I think the easiest way to do this might just
 # be to break apart the awk commands for each respective mode and use
 # variable expansion inside other variable expansion to replace the
-# commands on the fly. A sort of bizarre metaprogramming, if you will.
+# commands on the fly.
 echo "[LOG] Prefiltering ""$bedfile"
 awk -v OFS='\t' -v pus="$pus" -v pds="$pds" \
 		'{if ($6 == "+") print $1, $2-pus, $2+pds, $4, $5, $6}' "$Infile"\
@@ -201,7 +203,6 @@ wait
 # testing. This should be fine (FIXME, maybe), because we already
 # consider the strandedness of the data in the preliminary step of
 # separating strands and calculating a modified reference sequence.
-
 echo "[LOG] Calculating Region Sums ""$bedfile"
 bedtools map -a "$OutGenePosFile" -b "$InterestFilePos" -c 4 -o sum \
 		| awk -F '\t' '($5 != "." && $5 != 0) ' > "$GeneOutPos" &
@@ -222,9 +223,9 @@ wait
 # coverage for every gene that we haven't thrown out (we drop genes
 # that lack any reads in the paused region or the gene-body region,
 # since those missing gene-body reads leads to division by zero). Here
-# we calculate gene read coverage normalizing by length (TODO). Using
-# process substitution, we immediately pipe those output values into a
-# final file for our last step.
+# we calculate gene read coverage normalizing by length. Using process
+# substitution, we immediately pipe those output values into a final
+# file for our last step.
 
 # Finish Coverage Statistics by dividing by length.
 echo "[LOG] Calculating Coverage Statistics ""$bedfile"
@@ -243,14 +244,15 @@ paste "$BodyOutNeg" \
 wait
 
 # This is the last step, and the most complicated awk procedure. We
-# use a associative array with the (FIXME?) gene name as the key. Then
-# we can calculate the final pausing index while also retaining our
+# use a associative array with the gene name as the key. Then we can
+# calculate the final pausing index while also retaining our
 # normalized coverage statistics.
 
 # FIXME figure out a way to	account for	refseq strandedness earlier on...
 echo "[LOG] Calculating Pausing Index ""$bedfile"
-awk -F '\t' 'FNR==NR{a[$4]=$5; next} ($4 in a) {print $4,"+",$5/a[$4], $6}' \
-		"$GeneOutPos" "$FinalPos" | sort -t$'\t' -k1,1 > "$OutFile"
-awk -F '\t' 'FNR==NR{a[$4]=$5; next} ($4 in a) {print $4,"-",$5/a[$4], $6}' \
+echo -e "Gene Strand PauseIndex RPKM PauseRegion GeneBodyRegion" > "$OutFile"
+awk -F '\t' 'FNR==NR{a[$4]=$5; next} ($4 in a) {print $4,"+",$5/a[$4], $6, $5, a[$4]}' \
+		"$GeneOutPos" "$FinalPos" | sort -t$'\t' -k1,1 >> "$OutFile"
+awk -F '\t' 'FNR==NR{a[$4]=$5; next} ($4 in a) {print $4,"-",$5/a[$4], $6, $5, a[$4]}' \
 		"$GeneOutNeg" "$FinalNeg" | sort -t$'\t' -k1,1 >> "$OutFile"
 echo "[LOG] Done $bedfile $gds"
