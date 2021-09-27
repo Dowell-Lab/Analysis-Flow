@@ -92,8 +92,8 @@ makefig <- function(deseqdata, fileprefix) {
                                                fill = "white", linetype='solid')) +
         labs(title = paste0("DESeq2 Differential Expression ", legend_title),
              x = "Mean of Normalized Counts",
-             y = paste0("Log2 Fold-Change ", legend_title)) +
-        ggsave(paste0(fileprefix, "-diffexpr-maplot.pdf"), width = 8, height = 4.5)
+             y = paste0("Log2 Fold-Change ", legend_title))
+    ggsave(paste0(fileprefix, "-diffexpr-maplot.pdf"), width = 8, height = 4.5)
 
     ## Generate a tsv with results
     ## write.table(na.omit(as.data.frame(res[2])),

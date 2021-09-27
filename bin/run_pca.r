@@ -64,11 +64,11 @@ ggplot() +
     labs(x = "PC1", y = "PC2",
          title = "Principal Component Analysis of Samples",
          color = "Condition") +
-    guides(size = FALSE) +
-    ggsave(str_c("pca.pdf"),
-           plot = last_plot(),
-           height = 5,
-           width = 10)
+    guides(size = FALSE)
+ggsave(str_c("pca.pdf"),
+       plot = last_plot(),
+       height = 5,
+       width = 10)
 
 ######################################################################
 ### run_pca_r.r ends here

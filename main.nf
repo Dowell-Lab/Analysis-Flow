@@ -276,10 +276,7 @@ process mergedCountsForDESeq {
 	files=(${count})
 	num_files="\${#files[@]}"
 	echo "\$num_files"
-	paste \${files[@]} | \
-			awk -v count="\$num_files" \
-			'{printf "%s\\t%s\\t%s\\t%s\\t%s\\t%s", \$1, \$2, \$3, \$4, \$5, \$6;for(i=7;i<=NF;i=i+(NF/count)){printf "\\t%s", \$i}; printf "\\n"}' \
-			> counts_merged.txt
+	merge_counts_with_join.r -i \${files[@]} -o counts_merged.txt
 	"""
 }
 
@@ -301,10 +298,7 @@ process mergedCountsSeparated {
 		files=(${counts})
 		num_files="\${#files[@]}"
 		echo "\$num_files"
-		paste \${files[@]} | \
-				awk -v count="\$num_files" \
-				'{printf "%s\\t%s\\t%s\\t%s\\t%s\\t%s", \$1, \$2, \$3, \$4, \$5, \$6;for(i=7;i<=NF;i=i+(NF/count)){printf "\\t%s", \$i}; printf "\\n"}' \
-				> counts_${protocol}.txt
+		merge_counts_with_join.r -i \${files[@]} -o counts_${protocol}.txt
 		"""
 }
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Pausing Ratio Calculator
 # Author: Zachary Maas <zama8258@colorado.edu>
 # TODO
@@ -97,6 +97,7 @@ InterestFile="$bedfile" # The location of the bedfiles
 Infile=$ref
 baseBed=$(basename "$bedfile")
 OutFile="$outdir"/"$baseBed"_pause_ratios_"$gds".data
+PauseWidth=$((pds+pus))
 
 #	During debugging, we write out all output to disk so that we can
 #	examine it and see what's going on with our script changes. This is
@@ -193,7 +194,7 @@ awk -v OFS='\t' -v gus="$gus" -v gds="$gds" \
 echo "[LOG] Splitting data file ""$bedfile" &
 awk -v OFS='\t' '{if ($4 > 0) print $1, $2, $3, $4}' "$InterestFile" \
 		| sort -k1,1 -k2,2n > "$InterestFilePos" &
-awk -v OFS='\t' '{if ($4 < 0) print $1, $2, $3, $4}' "$InterestFile" \
+awk -v OFS='\t' '{if ($4 < 0) print $1, $2, $3, -$4}' "$InterestFile" \
 		| sort -k1,1 -k2,2n > "$InterestFileNeg" &
 wait
 
@@ -234,13 +235,13 @@ paste "$BodyOutPos" \
 						"$GeneOutPos" "$BodyOutPos") \
 			<(awk -F '\t' 'NR==FNR{a[NR]=$3-$2;next}{print ($3-$2)+a[FNR]}' \
 						"$GeneOutPos" "$BodyOutPos") | \
-		awk -F '\t' -v OFS='\t' '{print $1, $2, $3, $4, $5, $6/$7}' > "$FinalPos" &
+		awk -F '\t' -v OFS='\t' -v PW="$PauseWidth" '{print $1, $2, $3, $4, $5, $6, $5/PW, $6/$7, PW, $7}' > "$FinalPos" &
 paste "$BodyOutNeg" \
 			<(awk -F '\t' 'NR==FNR{a[NR]=$5;next}{print $5+a[FNR]}' \
 						"$GeneOutNeg" "$BodyOutNeg") \
 			<(awk -F '\t' 'NR==FNR{a[NR]=$3-$2;next}{print ($3-$2)+a[FNR]}' \
 						"$GeneOutNeg" "$BodyOutNeg") | \
-			awk -F '\t' -v OFS='\t' '{print $1, $2, $3, $4, $5, -($6/$7)}' > "$FinalNeg" &
+		awk -F '\t' -v OFS='\t' -v PW="$PauseWidth" '{print $1, $2, $3, $4, $5, $6, $5/PW, 6/$7, PW, $7}' > "$FinalNeg" &
 wait
 
 # This is the last step, and the most complicated awk procedure. We
@@ -250,9 +251,13 @@ wait
 
 # FIXME figure out a way to	account for	refseq strandedness earlier on...
 echo "[LOG] Calculating Pausing Index ""$bedfile"
-echo -e "Gene Strand PauseIndex RPKM PauseRegion GeneBodyRegion" > "$OutFile"
-awk -F '\t' 'FNR==NR{a[$4]=$5; next} ($4 in a) {print $4,"+",$5/a[$4], $6, $5, a[$4]}' \
-		"$GeneOutPos" "$FinalPos" | sort -t$'\t' -k1,1 >> "$OutFile"
-awk -F '\t' 'FNR==NR{a[$4]=$5; next} ($4 in a) {print $4,"-",$5/a[$4], $6, $5, a[$4]}' \
-		"$GeneOutNeg" "$FinalNeg" | sort -t$'\t' -k1,1 >> "$OutFile"
+echo -e "Gene Strand PauseIndex PauseIndexNorm PauseRegion GeneBodyRegion PauseRegionNorm GeneBodyRegionNorm PauseLength BodyLength" > "$OutFile"
+awk -F '\t' '{print $4,"+", $5/$6, $7/$8, $5, $6, $7, $8, $9, $10}' \
+		"$FinalPos" | sort -t$'\t' -k1,1 >> "$OutFile"
+awk -F '\t' '{print $4,"-", $5/$6, $7/$8, $5, $6, $7, $8, $9, $10}' \
+		"$FinalNeg" | sort -t$'\t' -k1,1 >> "$OutFile"
+# awk -F '\t' 'FNR==NR{a[$4]=$6; next} ($4 in a) {print $4,"+", $5/a[$4], $5, a[$4]}' \
+		# 		"$GeneOutPos" "$FinalPos" | sort -t$'\t' -k1,1 >> "$OutFile"
+# awk -F '\t' 'FNR==NR{a[$4]=$6; next} ($4 in a) {print $4,"-", $5/a[$4], $5, a[$4]}' \
+		# 		"$GeneOutNeg" "$FinalNeg" | sort -t$'\t' -k1,1 >> "$OutFile"
 echo "[LOG] Done $bedfile $gds"
